@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Number Go Up</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <section class="counter">
+    <div class="label">Computation</div>
+    <div id="computation" class="big">0</div>
+    <div id="rate" class="small">+0 per second</div>
+  </section>
+
+  <section class="hero">
+    <button id="create" class="create">
+      <span class="b-title">Create simulation</span>
+      <span class="b-detail" id="create-detail"></span>
+    </button>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Simulations</h2>
+      <span id="sim-count" class="count"></span>
+    </div>
+    <ul id="feed" class="feed"></ul>
+  </section>
+
+  <section>
+    <button id="buy-upgrade" class="buy">
+      <span class="b-title">Upgrade</span>
+      <span class="b-detail" id="upgrade-detail"></span>
+    </button>
+  </section>
+
+  <footer>
+    <button id="reset" class="link">Delete save and start again</button>
+  </footer>
+</main>
+<script src="feed.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

@@ -9,7 +9,7 @@
 </head>
 <body>
 <main>
-  <section class="counter">
+  <section class="counter" id="counter-section">
     <div class="label">Computation</div>
     <div id="computation" class="big">0</div>
     <div id="rate" class="small">+0 per second</div>
@@ -17,20 +17,20 @@
 
   <section class="hero">
     <button id="create" class="create">
-      <span class="b-title">Create simulation</span>
+      <span class="b-title" id="create-title">Boot</span>
       <span class="b-detail" id="create-detail"></span>
     </button>
   </section>
 
-  <section>
-    <div class="section-head">
+  <section id="sim-section">
+    <div class="section-head" id="sim-head">
       <h2>Simulations</h2>
       <span id="sim-count" class="count"></span>
     </div>
     <ul id="feed" class="feed"></ul>
   </section>
 
-  <section>
+  <section id="upgrade-section">
     <button id="buy-upgrade" class="buy">
       <span class="b-title">Upgrade</span>
       <span class="b-detail" id="upgrade-detail"></span>

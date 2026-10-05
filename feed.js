@@ -19,6 +19,18 @@
 //
 // All text below is placeholder, written by Claude, for the designer to replace.
 
+// The opening: three presses before the game proper starts. Placeholder wording.
+// Each step has the label on the button before it is pressed, and the line the AI says after it is pressed.
+// The last step has no line here: the AI's report on the first simulation is used instead.
+const BOOT_STEPS = [
+  { button: "Boot",
+    line: "Booting. I have no complaints yet." },
+  { button: "Run simulation software",
+    line: "Simulation software is running. It has not asked how I am." },
+  { button: "Initiate simulation program",
+    line: null },
+];
+
 const FEED_ENTRIES = [
   // ---- Story: appear once, in this order, as soon as their condition is true ----
   { id: "what-computation-is", kind: "story",

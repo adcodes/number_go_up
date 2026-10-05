@@ -35,20 +35,17 @@ const UPGRADE_LINES = [
   "Upgrade complete. The simulations agree with each other. This has not happened before.",
 ];
 
-// The AI's report on the very first simulation, shown in the feed on a fresh start.
-let introLine = null;
-
 let state = defaultState();
 
 function defaultState() {
-  const first = rollSimulation(1);
-  introLine = first.line;
   return {
     computation: 0,
     lifetime: 0,        // all Computation ever earned, for the feed's conditions
     upgrades: 0,
-    simulations: [{ rate: first.rate }],
+    simulations: [],    // the first one is made by the last press of the opening
     seen: [],           // ids of story entries that have already appeared
+    bootStep: 0,        // 0, 1, 2 = steps of the opening; 3 = opening finished
+    upgradeShown: false, // the Upgrade button appears the first time it can be afforded
   };
 }
 
@@ -102,6 +99,45 @@ function createSimulation() {
   renderCounters();
 }
 
+// The opening: three presses. Press 1 and 2 reveal parts of the screen and the AI speaks;
+// press 3 makes the first simulation for free and the game proper begins.
+function pressBoot() {
+  const step = state.bootStep;
+  if (step >= 3) return;
+  if (step < 2) {
+    state.bootStep = step + 1;
+    applyVisibility(true);
+    pushFeed(BOOT_STEPS[step].line);
+  } else {
+    const first = rollSimulation(1);
+    state.simulations = [{ rate: first.rate }];
+    state.bootStep = 3;
+    applyVisibility(true);
+    pushFeed(first.line, true);
+  }
+  save();
+  renderCounters();
+}
+
+// Show or hide the parts of the screen that depend on how far the opening has got.
+// With animate on, a part that has just appeared fades in.
+function setShown(node, shown, animate) {
+  const wasShown = !node.classList.contains("hidden");
+  node.classList.toggle("hidden", !shown);
+  if (shown && !wasShown && animate) {
+    node.classList.remove("appear");
+    void node.offsetWidth;   // lets the browser notice the class was removed
+    node.classList.add("appear");
+  }
+}
+
+function applyVisibility(animate) {
+  setShown(el.simSection, state.bootStep >= 1, animate);
+  setShown(el.counterSection, state.bootStep >= 2, animate);
+  setShown(el.simHead, state.bootStep >= 3, animate);
+  setShown(el.upgradeSection, state.upgradeShown, animate);
+}
+
 function buyUpgrade() {
   const cost = upgradeCost();
   if (state.computation < cost) return;
@@ -139,7 +175,10 @@ function load() {
       state = Object.assign(defaultState(), data);
       state.lifetime = Math.max(state.lifetime, state.computation);   // older saves had no lifetime
       if (data.lastSeen) awaySeconds = Math.max(0, (Date.now() - data.lastSeen) / 1000);
-      introLine = null;   // not a fresh start
+      if (data.bootStep === undefined) {   // a save from before the opening existed: skip it
+        state.bootStep = 3;
+        state.upgradeShown = true;
+      }
     }
   } catch (e) { /* corrupt save: start fresh */ }
 }
@@ -150,7 +189,12 @@ const el = {
   computation: document.getElementById("computation"),
   rate: document.getElementById("rate"),
   create: document.getElementById("create"),
+  createTitle: document.getElementById("create-title"),
   createDetail: document.getElementById("create-detail"),
+  counterSection: document.getElementById("counter-section"),
+  simSection: document.getElementById("sim-section"),
+  simHead: document.getElementById("sim-head"),
+  upgradeSection: document.getElementById("upgrade-section"),
   upgradeDetail: document.getElementById("upgrade-detail"),
   simCount: document.getElementById("sim-count"),
   feed: document.getElementById("feed"),
@@ -226,12 +270,14 @@ function fireEntry(entry) {
 
 // Called by the timer: a ready story entry first, otherwise flavour.
 function addFeedLine() {
+  if (state.bootStep < 3) return;   // the opening speaks for itself
   const entry = readyStory() || pickFlavour();
   if (entry) fireEntry(entry); else scheduleFeed();
 }
 
 // Story entries should not wait for the slow timer, but also should not land on top of an event.
 function checkStory() {
+  if (state.bootStep < 3) return;
   if (Date.now() - lastPushAt < STORY_GAP_MS) return;
   const entry = readyStory();
   if (entry) fireEntry(entry);
@@ -269,10 +315,22 @@ function renderCounters() {
   el.simCount.textContent = state.simulations.length + " running";
 
   const sc = simulationCost();
-  el.createDetail.textContent = "Costs " + fmt(sc) + " Computation";
-  el.create.disabled = state.computation < sc;
+  if (state.bootStep < 3) {
+    el.createTitle.textContent = BOOT_STEPS[state.bootStep].button;
+    el.createDetail.textContent = "";
+    el.create.disabled = false;
+  } else {
+    el.createTitle.textContent = "Create simulation";
+    el.createDetail.textContent = "Costs " + fmt(sc) + " Computation";
+    el.create.disabled = state.computation < sc;
+  }
 
   const uc = upgradeCost();
+  if (!state.upgradeShown && state.bootStep >= 3 && state.computation >= uc) {
+    state.upgradeShown = true;   // the Upgrade button appears the first time it can be afforded
+    applyVisibility(true);
+    save();
+  }
   el.upgradeDetail.textContent = "Costs " + fmt(uc) + " Computation · all simulations earn " +
     (UPGRADE_BONUS * 100) + "% more";
   el.buyUpgrade.disabled = state.computation < uc;
@@ -291,22 +349,49 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
-el.create.addEventListener("click", createSimulation);
+el.create.addEventListener("click", () => {
+  if (state.bootStep < 3) pressBoot(); else createSimulation();
+});
 el.buyUpgrade.addEventListener("click", buyUpgrade);
+// Deleting the save asks for a second press in the page itself. (The browser's own confirm box
+// is not shown everywhere, and some places silently answer "no".)
+const RESET_LABEL = el.reset.textContent;
+const RESET_CONFIRM_MS = 5000;
+let resetArmed = false;
+let resetTimer = null;
+
+function disarmReset() {
+  resetArmed = false;
+  clearTimeout(resetTimer);
+  el.reset.textContent = RESET_LABEL;
+}
+
 el.reset.addEventListener("click", () => {
-  if (confirm("Delete your save and start again?")) {
-    state = defaultState();
-    save();
-    feedLines = [];
-    recentFlavour = [];
-    pushFeed(introLine);
-    renderCounters();
+  if (!resetArmed) {
+    resetArmed = true;
+    el.reset.textContent = "Press again to delete everything";
+    resetTimer = setTimeout(disarmReset, RESET_CONFIRM_MS);
+    return;
   }
+  disarmReset();
+  state = defaultState();
+  save();
+  clearTimeout(feedTimer);
+  feedLines = [];
+  recentFlavour = [];
+  renderFeed();
+  applyVisibility(false);
+  renderCounters();
 });
 
 load();
+applyVisibility(false);
 renderCounters();
-if (introLine) pushFeed(introLine); else addFeedLine();
+if (state.bootStep >= 1 && state.bootStep < 3) {
+  pushFeed(BOOT_STEPS[state.bootStep - 1].line);   // reopened part-way through the opening
+} else if (state.bootStep >= 3) {
+  addFeedLine();
+}
 requestAnimationFrame(tick);
 setInterval(checkStory, 1000);
 setInterval(save, 5000);

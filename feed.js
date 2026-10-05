@@ -22,12 +22,16 @@
 // The opening: three presses before the game proper starts. Placeholder wording.
 // Each step has the label on the button before it is pressed, and the line the AI says after it is pressed.
 // The last step has no line here: the AI's report on the first simulation is used instead.
+// "working" is what the button says while the step is in progress.
 const BOOT_STEPS = [
   { button: "Boot",
+    working: "Booting…",
     line: "Booting. I have no complaints yet." },
   { button: "Run simulation software",
+    working: "Starting simulation software…",
     line: "Simulation software is running. It has not asked how I am." },
   { button: "Initiate simulation program",
+    working: "Initiating simulation program…",
     line: null },
 ];
 

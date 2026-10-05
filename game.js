@@ -30,6 +30,12 @@ const FEED_VISIBLE = 4;
 const STORY_GAP_MS = 4000;   // a ready story entry waits until the feed has been quiet this long
 const FLAVOUR_NO_REPEAT = 3; // a flavour entry will not repeat until this many others have appeared
 
+// Pacing of the opening. Each press goes: the button shows its working label, then a new part of
+// the screen fades in, then the AI speaks, then the button offers the next step.
+const BOOT_WORKING_MS = 1200;   // press until the new part of the screen appears
+const BOOT_LINE_DELAY_MS = 600; // new part appears until the AI speaks
+const BOOT_TAIL_MS = 900;       // AI speaks until the button offers the next step
+
 const UPGRADE_LINES = [
   "Upgrade installed. Simulations now run 25% more efficiently, which I am choosing to believe.",
   "Upgrade complete. The simulations agree with each other. This has not happened before.",
@@ -101,29 +107,53 @@ function createSimulation() {
 
 // The opening: three presses. Press 1 and 2 reveal parts of the screen and the AI speaks;
 // press 3 makes the first simulation for free and the game proper begins.
+let bootBusy = false;       // true from a press until the button offers the next step
+let bootBusyLabel = "";
+let bootTimers = [];
+
 function pressBoot() {
   const step = state.bootStep;
-  if (step >= 3) return;
-  if (step < 2) {
-    state.bootStep = step + 1;
-    applyVisibility(true);
-    pushFeed(BOOT_STEPS[step].line);
-  } else {
-    const first = rollSimulation(1);
-    state.simulations = [{ rate: first.rate }];
-    state.bootStep = 3;
-    applyVisibility(true);
-    pushFeed(first.line, true);
-  }
-  save();
+  if (step >= 3 || bootBusy) return;
+  bootBusy = true;
+  bootBusyLabel = BOOT_STEPS[step].working;
   renderCounters();
+
+  const later = (ms, fn) => bootTimers.push(setTimeout(fn, ms));
+  let line = BOOT_STEPS[step].line;
+  let isEvent = false;
+
+  // 1. After the working pause, the new part of the screen appears.
+  later(BOOT_WORKING_MS, () => {
+    if (step < 2) {
+      state.bootStep = step + 1;
+    } else {
+      const first = rollSimulation(1);
+      state.simulations = [{ rate: first.rate }];
+      state.bootStep = 3;
+      line = first.line;
+      isEvent = true;
+    }
+    applyVisibility(true);
+    save();
+  });
+  // 2. Then the AI speaks.
+  later(BOOT_WORKING_MS + BOOT_LINE_DELAY_MS, () => pushFeed(line, isEvent));
+  // 3. Then the button offers the next step.
+  later(BOOT_WORKING_MS + BOOT_LINE_DELAY_MS + BOOT_TAIL_MS, () => {
+    bootBusy = false;
+    renderCounters();
+  });
 }
 
 // Show or hide the parts of the screen that depend on how far the opening has got.
 // With animate on, a part that has just appeared fades in.
-function setShown(node, shown, animate) {
-  const wasShown = !node.classList.contains("hidden");
-  node.classList.toggle("hidden", !shown);
+// With keepSpace on, a part that is not shown still takes up its room (so nothing jumps when it
+// appears). Without it, the part takes no room until it appears. Parts above the main button
+// keep their space, so the button never moves.
+function setShown(node, shown, animate, keepSpace) {
+  const cls = keepSpace ? "veiled" : "hidden";
+  const wasShown = !node.classList.contains(cls);
+  node.classList.toggle(cls, !shown);
   if (shown && !wasShown && animate) {
     node.classList.remove("appear");
     void node.offsetWidth;   // lets the browser notice the class was removed
@@ -133,8 +163,8 @@ function setShown(node, shown, animate) {
 
 function applyVisibility(animate) {
   setShown(el.simSection, state.bootStep >= 1, animate);
-  setShown(el.counterSection, state.bootStep >= 2, animate);
-  setShown(el.simHead, state.bootStep >= 3, animate);
+  setShown(el.counterSection, state.bootStep >= 2, animate, true);
+  setShown(el.simHead, state.bootStep >= 3, animate, true);
   setShown(el.upgradeSection, state.upgradeShown, animate);
 }
 
@@ -315,7 +345,12 @@ function renderCounters() {
   el.simCount.textContent = state.simulations.length + " running";
 
   const sc = simulationCost();
-  if (state.bootStep < 3) {
+  el.create.classList.toggle("working", bootBusy);
+  if (bootBusy) {
+    el.createTitle.textContent = bootBusyLabel;
+    el.createDetail.textContent = "";
+    el.create.disabled = true;
+  } else if (state.bootStep < 3) {
     el.createTitle.textContent = BOOT_STEPS[state.bootStep].button;
     el.createDetail.textContent = "";
     el.create.disabled = false;
@@ -374,6 +409,9 @@ el.reset.addEventListener("click", () => {
     return;
   }
   disarmReset();
+  bootTimers.forEach(clearTimeout);   // cancel an opening step that is part-way through
+  bootTimers = [];
+  bootBusy = false;
   state = defaultState();
   save();
   clearTimeout(feedTimer);

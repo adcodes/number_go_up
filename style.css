@@ -63,7 +63,7 @@ h2 {
 .count { color: var(--dim); font-size: 14px; margin-right: 4px; }
 
 /* While an opening step is in progress, the label breathes so the eye stays on the button */
-.create.working .b-title { animation: working 1.4s ease-in-out infinite; }
+.primary.working .b-title { animation: working 1.4s ease-in-out infinite; }
 @keyframes working {
   0%, 100% { opacity: 0.45; }
   50%      { opacity: 1; }
@@ -81,7 +81,7 @@ h2 {
 /* Main action */
 .hero { text-align: center; }
 
-.create {
+.primary {
   width: 100%;
   min-height: 72px;
   font-size: 20px;
@@ -92,8 +92,8 @@ h2 {
   color: var(--accent-text);
   box-shadow: var(--shadow);
 }
-.create:active:not(:disabled) { transform: scale(0.98); }
-.create:disabled { background: var(--line); color: var(--dim); box-shadow: none; }
+.primary:active:not(:disabled) { transform: scale(0.98); }
+.primary:disabled { background: var(--line); color: var(--dim); box-shadow: none; }
 
 /* News feed: a card with a fixed height so the page never grows */
 .feed {
@@ -126,7 +126,7 @@ h2 {
   to   { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .feed li.new, .feed li.event, .appear, .create.working .b-title { animation: none; }
+  .feed li.new, .feed li.event, .appear, .primary.working .b-title { animation: none; }
 }
 
 /* Buy buttons */
@@ -160,4 +160,34 @@ button.link {
   font-size: 13px;
   text-decoration: underline;
   padding: 8px;
+}
+
+/* The Create simulation button sits under the main Compute button */
+.hero .buy { margin-top: 12px; }
+
+/* Maths that appears faintly around the Compute button and fades away, behind the interface */
+.floats {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+main { position: relative; z-index: 1; }
+.math {
+  position: absolute;
+  white-space: nowrap;
+  font-family: "Cambria Math", "STIX Two Math", "Times New Roman", serif;
+  font-style: italic;
+  color: var(--accent);
+  opacity: 0;
+  animation: math-fade 1.8s ease-out forwards;
+}
+@keyframes math-fade {
+  0%   { opacity: 0;    transform: translateY(6px); }
+  18%  { opacity: 0.4; }
+  100% { opacity: 0;    transform: translateY(-18px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .math { display: none; }
 }

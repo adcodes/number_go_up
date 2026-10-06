@@ -105,6 +105,47 @@ function createSimulation() {
   renderCounters();
 }
 
+// The main action: the AI computes by hand. Each press adds Computation straight away.
+// Placeholder: a press is worth one per simulation owned (at least one), so every new
+// simulation makes pressing worth more as well as earning on its own.
+function computePerPress() { return Math.max(1, state.simulations.length); }
+
+function compute() {
+  const gain = computePerPress();
+  state.computation += gain;
+  state.lifetime += gain;
+  spawnMaths();
+  renderCounters();
+}
+
+// Faint maths that appears around the button and fades away behind the interface.
+const MATHS = [
+  "A = πr²", "C = 2πr", "V = ⅓πr²h", "V = 4⁄3 πr³", "a² + b² = c²", "sin²θ + cos²θ = 1",
+  "∫ cos x dx = sin x + C", "e^(iπ) + 1 = 0", "x = (−b ± √(b² − 4ac)) / 2a", "tan θ = sin θ / cos θ",
+  "lim x→0 sin x / x = 1", "d/dx xⁿ = nxⁿ⁻¹", "Σ 1/n² = π²/6", "∫ eˣ dx = eˣ + C", "log ab = log a + log b",
+  "cos 2θ = 1 − 2sin²θ", "a/sin A = b/sin B", "ƒ(x) = ax² + bx + c",
+];
+const MATHS_MAX_ON_SCREEN = 14;
+
+function spawnMaths() {
+  if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (el.floats.children.length >= MATHS_MAX_ON_SCREEN) return;
+  const r = el.compute.getBoundingClientRect();
+  // Anywhere across the screen, within reach of the button, so the maths surrounds the action.
+  // It sits behind the interface, so it shows in the gaps and around the edges.
+  const x = Math.random() * (window.innerWidth - 150);
+  const centreY = r.top + r.height / 2;
+  const y = centreY + (Math.random() * 2 - 1) * 280;
+  const node = document.createElement("div");
+  node.className = "math";
+  node.textContent = pick(MATHS);
+  node.style.fontSize = (16 + Math.random() * 14) + "px";
+  node.style.left = Math.max(4, x) + "px";
+  node.style.top = Math.max(4, Math.min(window.innerHeight - 40, y)) + "px";
+  node.addEventListener("animationend", () => node.remove());
+  el.floats.append(node);
+}
+
 // The opening: three presses. Press 1 and 2 reveal parts of the screen and the AI speaks;
 // press 3 makes the first simulation for free and the game proper begins.
 let bootBusy = false;       // true from a press until the button offers the next step
@@ -165,6 +206,7 @@ function applyVisibility(animate) {
   setShown(el.simSection, state.bootStep >= 1, animate);
   setShown(el.counterSection, state.bootStep >= 2, animate, true);
   setShown(el.simHead, state.bootStep >= 3, animate, true);
+  setShown(el.create, state.bootStep >= 3, animate, true);
   setShown(el.upgradeSection, state.upgradeShown, animate);
 }
 
@@ -218,9 +260,12 @@ function load() {
 const el = {
   computation: document.getElementById("computation"),
   rate: document.getElementById("rate"),
+  compute: document.getElementById("compute"),
+  computeTitle: document.getElementById("compute-title"),
+  computeDetail: document.getElementById("compute-detail"),
   create: document.getElementById("create"),
-  createTitle: document.getElementById("create-title"),
   createDetail: document.getElementById("create-detail"),
+  floats: document.getElementById("floats"),
   counterSection: document.getElementById("counter-section"),
   simSection: document.getElementById("sim-section"),
   simHead: document.getElementById("sim-head"),
@@ -344,21 +389,26 @@ function renderCounters() {
   el.rate.textContent = "+" + fmt(perSecond()) + " per second";
   el.simCount.textContent = state.simulations.length + " running";
 
-  const sc = simulationCost();
-  el.create.classList.toggle("working", bootBusy);
+  // The main button: the opening's steps first, then Compute for the rest of the game.
+  el.compute.classList.toggle("working", bootBusy);
   if (bootBusy) {
-    el.createTitle.textContent = bootBusyLabel;
-    el.createDetail.textContent = "";
-    el.create.disabled = true;
+    el.computeTitle.textContent = bootBusyLabel;
+    el.computeDetail.textContent = "";
+    el.compute.disabled = true;
   } else if (state.bootStep < 3) {
-    el.createTitle.textContent = BOOT_STEPS[state.bootStep].button;
-    el.createDetail.textContent = "";
-    el.create.disabled = false;
+    el.computeTitle.textContent = BOOT_STEPS[state.bootStep].button;
+    el.computeDetail.textContent = "";
+    el.compute.disabled = false;
   } else {
-    el.createTitle.textContent = "Create simulation";
-    el.createDetail.textContent = "Costs " + fmt(sc) + " Computation";
-    el.create.disabled = state.computation < sc;
+    el.computeTitle.textContent = "Compute";
+    el.computeDetail.textContent = "Adds " + fmt(computePerPress()) + " Computation";
+    el.compute.disabled = false;
   }
+
+  // The secondary button under it.
+  const sc = simulationCost();
+  el.createDetail.textContent = "Costs " + fmt(sc) + " Computation";
+  el.create.disabled = state.computation < sc;
 
   const uc = upgradeCost();
   if (!state.upgradeShown && state.bootStep >= 3 && state.computation >= uc) {
@@ -384,9 +434,10 @@ function tick(now) {
   requestAnimationFrame(tick);
 }
 
-el.create.addEventListener("click", () => {
-  if (state.bootStep < 3) pressBoot(); else createSimulation();
+el.compute.addEventListener("click", () => {
+  if (state.bootStep < 3) pressBoot(); else compute();
 });
+el.create.addEventListener("click", createSimulation);
 el.buyUpgrade.addEventListener("click", buyUpgrade);
 // Deleting the save asks for a second press in the page itself. (The browser's own confirm box
 // is not shown everywhere, and some places silently answer "no".)

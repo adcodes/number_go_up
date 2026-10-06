@@ -26,6 +26,7 @@ const OUTCOMES = [
 
 // News feed: flavour text about what is happening across the simulations. Placeholder lines.
 const FEED_INTERVAL_MS = 8000;
+const FEED_GROW_MS = 600;   // how long a new line takes to grow into place (keep in step with style.css)
 const FEED_VISIBLE = 4;
 const STORY_GAP_MS = 4000;   // a ready story entry waits until the feed has been quiet this long
 const FLAVOUR_NO_REPEAT = 3; // a flavour entry will not repeat until this many others have appeared
@@ -288,7 +289,11 @@ function pushFeed(line, isEvent) {
   feedLines.unshift(line);
   if (feedLines.length > FEED_VISIBLE) feedLines.length = FEED_VISIBLE;
   renderFeed();
-  el.feed.firstChild.classList.add(isEvent ? "event" : "new");
+  // The new line grows to its own measured height, so a long line glides in as evenly as a short one.
+  const newest = el.feed.firstChild;
+  newest.style.setProperty("--h", newest.getBoundingClientRect().height + "px");
+  newest.classList.add(isEvent ? "event" : "new");
+  if (el.feed.children[1]) el.feed.children[1].classList.add("settle");   // the old top line dims gradually
   lastPushAt = Date.now();
   scheduleFeed();
 }
@@ -367,21 +372,28 @@ window.debugFeed = {
   forget: () => { state.seen = []; save(); },
 };
 
+let feedRenderId = 0;
+
 function renderFeed() {
+  const thisRender = ++feedRenderId;
   el.feed.textContent = "";
   for (const line of feedLines) {
     const li = document.createElement("li");
     li.textContent = line;
     el.feed.append(li);
   }
-  // Never show a line cut in half: drop lines from the bottom until everything fits.
-  // The card has padding, so compare against the bottom of its content area.
+  // Never show a line cut in half. Lines that do not fit are marked "leaving": as the new line
+  // grows in, they glide out past the bottom of the card (which clips them), and they are
+  // removed once that movement has finished. The card has padding, so compare against the
+  // bottom of its content area.
   const pad = parseFloat(getComputedStyle(el.feed).paddingBottom);
   const limit = el.feed.getBoundingClientRect().bottom - pad;
-  while (el.feed.children.length > 1 &&
-         el.feed.lastChild.getBoundingClientRect().bottom > limit + 0.5) {
-    el.feed.lastChild.remove();
-  }
+  [...el.feed.children].forEach((li, i) => {
+    if (i > 0 && li.getBoundingClientRect().bottom > limit + 0.5) li.classList.add("leaving");
+  });
+  setTimeout(() => {
+    if (thisRender === feedRenderId) el.feed.querySelectorAll(".leaving").forEach(n => n.remove());
+  }, FEED_GROW_MS + 100);
 }
 
 function renderCounters() {
